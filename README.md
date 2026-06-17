@@ -16,12 +16,14 @@ PROPOSE ──▶ SIGN ──▶ SIGN ──▶ … ──▶ EXECUTE
 3. **Execute** — verifies signatures, sorts them by signer address ascending (as Safe requires), concatenates, and submits `execTransaction`.
 
 ## Invariants
-- Signatures are **verified** before submission; invalid ones are dropped.
+- **Owner-bound** — only signatures from current Safe owners (`getOwners()`) count; non-owner signatures are ignored.
+- **Threshold-aware** — execution reads `getThreshold()` and **refuses to broadcast below threshold**, failing fast with a clear reason instead of reverting on-chain and wasting gas.
+- **De-duplicated** — repeated signatures from the same owner collapse to one.
 - Signatures are **sorted ascending by signer address** — the ordering Gnosis Safe requires — before execution.
 - Nonce is read live from the Safe contract per proposal.
 
 ## Actions
-`PHAROS_MULTISIG_PROPOSE`, `PHAROS_MULTISIG_SIGN`, `PHAROS_MULTISIG_EXECUTE`.
+`PHAROS_MULTISIG_PROPOSE`, `PHAROS_MULTISIG_SIGN`, `PHAROS_MULTISIG_EXECUTE`, and `PHAROS_MULTISIG_STATUS` (read-only: owners, threshold, nonce — so a swarm knows how many more co-signatures it needs).
 
 ## Quickstart
 ```bash

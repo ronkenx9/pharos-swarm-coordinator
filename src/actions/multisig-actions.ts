@@ -10,6 +10,7 @@ import {
 import { privateKeyToAccount } from 'viem/accounts';
 import { pharosTestnet } from '../chains.js';
 import { calculateSafeTxHash, signSafeTx, verifySafeSignature, type SafeTxDetails } from '../tools/safe-adapter.js';
+import { readSafeState, validateSignaturesAgainstSafe } from '../tools/safe-state.js';
 
 // Minimal Gnosis Safe ABI for execution & nonce lookup
 const SAFE_ABI = [
@@ -222,30 +223,33 @@ export const pharosMultisigExecuteAction = {
       nonce: BigInt(tx_details.nonce),
     };
 
-    // 1. Verify signatures and sort them ascending by signer address
-    const verifiedSignatures = [];
-    for (const sig of signatures) {
-      const isValid = await verifySafeSignature(
-        safe_address as Address,
-        details,
-        sig.signature as Hex,
-        sig.signer as Address
-      );
+    // 1. Validate signatures against the Safe's REAL owner set and threshold
+    //    before broadcasting, so non-owner or sub-threshold submissions fail
+    //    fast with a clear reason instead of reverting on-chain.
+    const safeState = await readSafeState(safe_address as Address, rpc);
+    const validation = await validateSignaturesAgainstSafe(
+      safe_address as Address,
+      details,
+      signatures.map((s: any) => ({ signer: s.signer as Address, signature: s.signature as Hex })),
+      safeState
+    );
 
-      if (isValid) {
-        verifiedSignatures.push(sig);
-      }
-    }
-
-    if (verifiedSignatures.length === 0) {
+    if (!validation.ok) {
       return {
-        status: 'error',
-        message: 'No valid co-signatures provided.',
+        status: 'blocked',
+        message: validation.reason,
+        data: {
+          validSignatures: validation.valid.length,
+          threshold: validation.threshold,
+          owners: validation.owners,
+        },
       };
     }
 
     // Gnosis Safe requires signatures sorted by signer address ascending
-    verifiedSignatures.sort((a, b) => a.signer.toLowerCase().localeCompare(b.signer.toLowerCase()));
+    const verifiedSignatures = [...validation.valid].sort((a, b) =>
+      a.signer.toLowerCase().localeCompare(b.signer.toLowerCase())
+    );
 
     // Concatenate signatures into a single byte payload
     const signatureBytes = '0x' + verifiedSignatures.map(s => s.signature.slice(2)).join('') as Hex;
@@ -288,4 +292,48 @@ export const pharosMultisigExecuteAction = {
       };
     }
   },
+};
+
+/**
+ * STATUS — read-only introspection of a Safe: owners, signing threshold, and
+ * current nonce. Lets a swarm see how many co-signatures it still needs before
+ * it can execute.
+ */
+export const pharosMultisigStatusAction = {
+  name: 'PHAROS_MULTISIG_STATUS',
+  similes: [
+    'get safe owners and threshold',
+    'how many signatures does this safe need',
+    'inspect multisig configuration',
+  ],
+  description: 'Reads a Gnosis Safe on Pharos and returns its owners, signing threshold, and current nonce.',
+  schema: z.object({
+    safe_address: z.string().describe('The Gnosis Safe address'),
+    rpc_url: z.string().optional().describe('Custom RPC URL override'),
+  }),
+  handler: async (_agent: any, input: Record<string, any>) => {
+    try {
+      const state = await readSafeState(input.safe_address as Address, input.rpc_url);
+      return {
+        status: 'success',
+        data: {
+          safeAddress: input.safe_address,
+          owners: state.owners,
+          ownerCount: state.owners.length,
+          threshold: state.threshold,
+          nonce: state.nonce.toString(),
+        },
+        message: `Safe requires ${state.threshold} of ${state.owners.length} owner signatures.`,
+      };
+    } catch (err: any) {
+      return { status: 'error', message: `Could not read Safe state: ${err.message || err}` };
+    }
+  },
+};
+
+export const ACTIONS = {
+  PHAROS_MULTISIG_PROPOSE: pharosMultisigProposeAction,
+  PHAROS_MULTISIG_SIGN: pharosMultisigSignAction,
+  PHAROS_MULTISIG_EXECUTE: pharosMultisigExecuteAction,
+  PHAROS_MULTISIG_STATUS: pharosMultisigStatusAction,
 };

@@ -1,9 +1,5 @@
 import { PharosAgentKit, startMcpServer } from 'pharos-agent-kit';
-import { 
-  pharosMultisigProposeAction, 
-  pharosMultisigSignAction, 
-  pharosMultisigExecuteAction 
-} from './actions/multisig-actions.js';
+import { ACTIONS } from './actions/multisig-actions.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -17,9 +13,10 @@ const agent = new PharosAgentKit(privateKey, rpcUrl);
 (agent as any).privateKey = privateKey;
 
 const actions = {
-  PHAROS_MULTISIG_PROPOSE: pharosMultisigProposeAction as any,
-  PHAROS_MULTISIG_SIGN: pharosMultisigSignAction as any,
-  PHAROS_MULTISIG_EXECUTE: pharosMultisigExecuteAction as any,
+  PHAROS_MULTISIG_PROPOSE: ACTIONS.PHAROS_MULTISIG_PROPOSE as any,
+  PHAROS_MULTISIG_SIGN: ACTIONS.PHAROS_MULTISIG_SIGN as any,
+  PHAROS_MULTISIG_EXECUTE: ACTIONS.PHAROS_MULTISIG_EXECUTE as any,
+  PHAROS_MULTISIG_STATUS: ACTIONS.PHAROS_MULTISIG_STATUS as any,
 };
 
 async function main() {
