@@ -35,6 +35,12 @@ npm run dev                 # CLI demo
 npm run mcp                 # MCP server
 ```
 
+## Environment
+| Var | Required | Purpose |
+|---|---|---|
+| `PHAROS_RPC_URL` | no (defaults to testnet) | Pharos RPC endpoint |
+| `WALLET_PRIVATE_KEY` | yes (to sign/execute) | Signs Safe transactions and submits `execTransaction` |
+
 ## Network
 Pharos Atlantic testnet — chain id `688689`, RPC `https://atlantic.dplabs-internal.com`, explorer `https://atlantic.pharosscan.xyz`.
 
